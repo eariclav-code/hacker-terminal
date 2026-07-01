@@ -75,6 +75,26 @@ namespace HackerTerminal
                     CommandCat(argument);
                     break;
 
+                case "decrypt":
+                    CommandDecrypt(argument);
+                    break;
+
+                case "hack":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'hack' появится позже.[/]");
+                    break;
+
+                case "scan":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'scan' появится позже.[/]");
+                    break;
+
+                case "connect":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'connect' появится позже.[/]");
+                    break;
+
+                case "status":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'status' появится позже.[/]");
+                    break;
+
                 case "clear":
                 case "cls":
                     Console.Clear();
@@ -160,6 +180,95 @@ namespace HackerTerminal
             }
         }
 
+        static void CommandCat(string argument)
+        {
+            if (string.IsNullOrEmpty(argument))
+            {
+                AnsiConsole.MarkupLine("[red]Укажи файл. Пример: cat readme.txt[/]");
+                return;
+            }
+
+            var dir = _state!.CurrentDirectory;
+
+            if (!dir.Files.TryGetValue(argument, out var file))
+            {
+                AnsiConsole.MarkupLine($"[red]Файл '{argument}' не найден.[/]");
+                return;
+            }
+
+            if (file.IsEncrypted)
+            {
+                AnsiConsole.MarkupLine($"[red]Файл '{argument}' зашифрован. Используй: decrypt {argument} <ключ>[/]");
+                return;
+            }
+
+            AnsiConsole.MarkupLine($"\n[green]--- {argument} ---[/]");
+            Console.WriteLine(file.Content);
+            AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
+        }
+
+        static void CommandDecrypt(string argument)
+        {
+            if (string.IsNullOrEmpty(argument))
+            {
+                AnsiConsole.MarkupLine("[red]Использование: decrypt <файл> <ключ>[/]");
+                return;
+            }
+
+            string[] parts = argument.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length < 2)
+            {
+                AnsiConsole.MarkupLine("[red]Укажи файл и ключ. Пример: decrypt secret.txt 3[/]");
+                return;
+            }
+
+            string fileName = parts[0];
+            string keyStr = parts[1];
+
+            if (!int.TryParse(keyStr, out int key))
+            {
+                AnsiConsole.MarkupLine("[red]Ключ должен быть числом. Пример: decrypt secret.txt 3[/]");
+                return;
+            }
+
+            var dir = _state!.CurrentDirectory;
+
+            if (!dir.Files.TryGetValue(fileName, out var file))
+            {
+                AnsiConsole.MarkupLine($"[red]Файл '{fileName}' не найден.[/]");
+                return;
+            }
+
+            if (!file.IsEncrypted)
+            {
+                AnsiConsole.MarkupLine($"[yellow]Файл '{fileName}' не зашифрован.[/]");
+                return;
+            }
+
+            if (key != file.CipherShift)
+            {
+                AnsiConsole.MarkupLine("[red]Неверный ключ. Попробуй другое число.[/]");
+                return;
+            }
+
+            string decrypted = CaesarCipher.Decrypt(file.Content, key);
+            file.Decrypt(decrypted);
+
+            TypePrint("\nРасшифровка", 40);
+            Thread.Sleep(200);
+            Console.Write(".");
+            Thread.Sleep(200);
+            Console.Write(".");
+            Thread.Sleep(200);
+            Console.WriteLine(".");
+            Thread.Sleep(400);
+            AnsiConsole.MarkupLine("[green]Файл успешно расшифрован![/]");
+            AnsiConsole.MarkupLine($"\n[green]--- {fileName} ---[/]");
+            Console.WriteLine(decrypted);
+            AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
+        }
+
         static void ShowBanner()
         {
             Console.Clear();
@@ -201,36 +310,6 @@ namespace HackerTerminal
                 Thread.Sleep(delayMs);
             }
             Console.ResetColor();
-        }
-    static void CommandCat(string argument)
-        {
-            // Пустой аргумент
-            if (string.IsNullOrEmpty(argument))
-            {
-                AnsiConsole.MarkupLine("[red]Укажи файл. Пример: cat readme.txt[/]");
-                return;
-            }
-
-            var dir = _state!.CurrentDirectory;
-
-            // Ищем файл в текущей папке
-            if (!dir.Files.TryGetValue(argument, out var file))
-            {
-                AnsiConsole.MarkupLine($"[red]Файл '{argument}' не найден.[/]");
-                return;
-            }
-
-            // Файл зашифрован
-            if (file.IsEncrypted)
-            {
-                AnsiConsole.MarkupLine($"[red]Файл '{argument}' зашифрован. Используй: decrypt {argument} <ключ>[/]");
-                return;
-            }
-
-            // Выводим содержимое
-            AnsiConsole.MarkupLine($"\n[green]--- {argument} ---[/]");
-            Console.WriteLine(file.Content);
-            AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
         }
     }
 }
