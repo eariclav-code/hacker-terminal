@@ -72,7 +72,7 @@ namespace HackerTerminal
 
                 case "cat":
                 case "open":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'cat' появится в пятницу.[/]");
+                    CommandCat(argument);
                     break;
 
                 case "clear":
@@ -201,6 +201,36 @@ namespace HackerTerminal
                 Thread.Sleep(delayMs);
             }
             Console.ResetColor();
+        }
+    static void CommandCat(string argument)
+        {
+            // Пустой аргумент
+            if (string.IsNullOrEmpty(argument))
+            {
+                AnsiConsole.MarkupLine("[red]Укажи файл. Пример: cat readme.txt[/]");
+                return;
+            }
+
+            var dir = _state!.CurrentDirectory;
+
+            // Ищем файл в текущей папке
+            if (!dir.Files.TryGetValue(argument, out var file))
+            {
+                AnsiConsole.MarkupLine($"[red]Файл '{argument}' не найден.[/]");
+                return;
+            }
+
+            // Файл зашифрован
+            if (file.IsEncrypted)
+            {
+                AnsiConsole.MarkupLine($"[red]Файл '{argument}' зашифрован. Используй: decrypt {argument} <ключ>[/]");
+                return;
+            }
+
+            // Выводим содержимое
+            AnsiConsole.MarkupLine($"\n[green]--- {argument} ---[/]");
+            Console.WriteLine(file.Content);
+            AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
         }
     }
 }
