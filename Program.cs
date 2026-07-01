@@ -18,11 +18,9 @@ namespace HackerTerminal
             ShowBanner();
             RunBootSequence();
 
-            // Инициализируем файловую систему и состояние игры
             var root = FileSystemBuilder.BuildRoot();
             _state = new GameState(root);
 
-            // Запускаем главный цикл
             RunCommandLoop();
         }
 
@@ -32,7 +30,6 @@ namespace HackerTerminal
 
             while (true)
             {
-                // Приглашение ввода с текущим путём
                 string path = _state!.GetCurrentPath();
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.Write($"root@hacker:{path}> ");
@@ -40,16 +37,13 @@ namespace HackerTerminal
 
                 string? input = Console.ReadLine()?.Trim();
 
-                // Пустой ввод — просто продолжаем
                 if (string.IsNullOrEmpty(input))
                     continue;
 
-                // Парсим команду и аргумент
                 string[] parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                 string command = parts[0].ToLower();
                 string argument = parts.Length > 1 ? parts[1] : "";
 
-                // Обрабатываем команду
                 HandleCommand(command, argument);
             }
         }
@@ -67,14 +61,13 @@ namespace HackerTerminal
                     Environment.Exit(0);
                     break;
 
-                // Заглушки для будущих команд (четверг-пятница)
                 case "ls":
                 case "dir":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'ls' появится в четверг.[/]");
+                    CommandLs();
                     break;
 
                 case "cd":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'cd' появится в четверг.[/]");
+                    CommandCd(argument);
                     break;
 
                 case "cat":
@@ -88,7 +81,7 @@ namespace HackerTerminal
                     break;
 
                 default:
-                    AnsiConsole.MarkupLine($"[red]Неизвестная команда: '{command}'. Введи 'help' для списка команд.[/]");
+                    AnsiConsole.MarkupLine($"[red]Неизвестная команда: '{command}'. Введи 'help'.[/]");
                     break;
             }
         }
@@ -107,6 +100,64 @@ namespace HackerTerminal
             AnsiConsole.MarkupLine("[green]  status[/]            — показать прогресс");
             AnsiConsole.MarkupLine("[green]  clear / cls[/]       — очистить экран");
             AnsiConsole.MarkupLine("[green]  exit[/]              — выйти из игры\n");
+        }
+
+        static void CommandLs()
+        {
+            var dir = _state!.CurrentDirectory;
+
+            AnsiConsole.MarkupLine($"\n[green]Содержимое папки {_state.GetCurrentPath()}:[/]");
+
+            foreach (var subdir in dir.VisibleSubdirectories())
+            {
+                AnsiConsole.MarkupLine($"[blue]  [[{subdir.Name}/]][/]");
+            }
+
+            foreach (var file in dir.Files.Values)
+            {
+                string encrypted = file.IsEncrypted ? " [red][зашифрован][/]" : "";
+                AnsiConsole.MarkupLine($"[green]  {file.Name}[/]{encrypted}");
+            }
+
+            Console.WriteLine();
+        }
+
+        static void CommandCd(string argument)
+        {
+            if (string.IsNullOrEmpty(argument))
+            {
+                AnsiConsole.MarkupLine("[red]Укажи папку. Пример: cd home[/]");
+                return;
+            }
+
+            if (argument == "..")
+            {
+                if (_state!.CurrentDirectory == _state.RootDirectory)
+                {
+                    AnsiConsole.MarkupLine("[red]Выше корня подняться нельзя.[/]");
+                    return;
+                }
+
+                _state.CurrentDirectory = _state.CurrentDirectory.Parent!;
+                return;
+            }
+
+            var current = _state!.CurrentDirectory;
+
+            if (current.Subdirectories.TryGetValue(argument, out var target))
+            {
+                if (target.IsHidden)
+                {
+                    AnsiConsole.MarkupLine($"[red]Папка '{argument}' не найдена.[/]");
+                    return;
+                }
+
+                _state.CurrentDirectory = target;
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[red]Папка '{argument}' не найдена.[/]");
+            }
         }
 
         static void ShowBanner()
