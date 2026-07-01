@@ -80,11 +80,11 @@ namespace HackerTerminal
                     break;
 
                 case "hack":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'hack' появится позже.[/]");
+                    AnsiConsole.MarkupLine("[yellow]Команда 'hack' появится завтра.[/]");
                     break;
 
                 case "scan":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'scan' появится позже.[/]");
+                    AnsiConsole.MarkupLine("[yellow]Команда 'scan' появится завтра.[/]");
                     break;
 
                 case "connect":
@@ -92,7 +92,7 @@ namespace HackerTerminal
                     break;
 
                 case "status":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'status' появится позже.[/]");
+                    AnsiConsole.MarkupLine("[yellow]Команда 'status' появится завтра.[/]");
                     break;
 
                 case "clear":
@@ -267,6 +267,12 @@ namespace HackerTerminal
             AnsiConsole.MarkupLine($"\n[green]--- {fileName} ---[/]");
             Console.WriteLine(decrypted);
             AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
+
+            // Запоминаем расшифрованный файл и проверяем уровень
+            _state!.DecryptedFiles.Add(fileName);
+            _state.Score += 50;
+            AnsiConsole.MarkupLine("[green]+50 очков за расшифровку![/]");
+            LevelManager.CheckLevelUp(_state);
         }
 
         static void ShowBanner()
