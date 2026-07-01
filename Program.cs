@@ -8,6 +8,8 @@ namespace HackerTerminal
 {
     internal class Program
     {
+        static GameState? _state;
+
         static void Main(string[] args)
         {
             Console.Title = "Hacker Terminal";
@@ -16,22 +18,103 @@ namespace HackerTerminal
             ShowBanner();
             RunBootSequence();
 
-            // На этом этапе главный цикл команд ещё не готов —
-            // это будет следующим шагом (среда, неделя 1).
-            AnsiConsole.MarkupLine("[green]> Система готова. Главный цикл команд появится на следующем шаге.[/]");
-        // Временная проверка (уберём в среду, когда появится главный цикл команд)
-        var root = FileSystemBuilder.BuildRoot();
-        AnsiConsole.MarkupLine($"[green]ФС загружена: файлов в корне: {root.Files.Count}, папок: {System.Linq.Enumerable.Count(root.VisibleSubdirectories())}[/]");
+            // Инициализируем файловую систему и состояние игры
+            var root = FileSystemBuilder.BuildRoot();
+            _state = new GameState(root);
+
+            // Запускаем главный цикл
+            RunCommandLoop();
+        }
+
+        static void RunCommandLoop()
+        {
+            AnsiConsole.MarkupLine("[green]Введи 'help' для списка команд.[/]\n");
+
+            while (true)
+            {
+                // Приглашение ввода с текущим путём
+                string path = _state!.GetCurrentPath();
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.Write($"root@hacker:{path}> ");
+                Console.ResetColor();
+
+                string? input = Console.ReadLine()?.Trim();
+
+                // Пустой ввод — просто продолжаем
+                if (string.IsNullOrEmpty(input))
+                    continue;
+
+                // Парсим команду и аргумент
+                string[] parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                string command = parts[0].ToLower();
+                string argument = parts.Length > 1 ? parts[1] : "";
+
+                // Обрабатываем команду
+                HandleCommand(command, argument);
+            }
+        }
+
+        static void HandleCommand(string command, string argument)
+        {
+            switch (command)
+            {
+                case "help":
+                    ShowHelp();
+                    break;
+
+                case "exit":
+                    TypePrint("\nЗавершение сеанса...\n", 30);
+                    Environment.Exit(0);
+                    break;
+
+                // Заглушки для будущих команд (четверг-пятница)
+                case "ls":
+                case "dir":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'ls' появится в четверг.[/]");
+                    break;
+
+                case "cd":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'cd' появится в четверг.[/]");
+                    break;
+
+                case "cat":
+                case "open":
+                    AnsiConsole.MarkupLine("[yellow]Команда 'cat' появится в пятницу.[/]");
+                    break;
+
+                case "clear":
+                case "cls":
+                    Console.Clear();
+                    break;
+
+                default:
+                    AnsiConsole.MarkupLine($"[red]Неизвестная команда: '{command}'. Введи 'help' для списка команд.[/]");
+                    break;
+            }
+        }
+
+        static void ShowHelp()
+        {
+            AnsiConsole.MarkupLine("\n[green]Доступные команды:[/]");
+            AnsiConsole.MarkupLine("[green]  help[/]              — показать этот список");
+            AnsiConsole.MarkupLine("[green]  ls / dir[/]          — показать содержимое папки");
+            AnsiConsole.MarkupLine("[green]  cd <папка>[/]        — перейти в папку (cd .. — назад)");
+            AnsiConsole.MarkupLine("[green]  cat <файл>[/]        — прочитать файл");
+            AnsiConsole.MarkupLine("[green]  decrypt <файл>[/]    — расшифровать файл");
+            AnsiConsole.MarkupLine("[green]  hack <цель>[/]       — взломать цель");
+            AnsiConsole.MarkupLine("[green]  scan[/]              — сканировать систему");
+            AnsiConsole.MarkupLine("[green]  connect <адрес>[/]   — подключиться к узлу");
+            AnsiConsole.MarkupLine("[green]  status[/]            — показать прогресс");
+            AnsiConsole.MarkupLine("[green]  clear / cls[/]       — очистить экран");
+            AnsiConsole.MarkupLine("[green]  exit[/]              — выйти из игры\n");
         }
 
         static void ShowBanner()
         {
             Console.Clear();
             Console.ForegroundColor = ConsoleColor.Green;
-
             string banner = FiggleFonts.Standard.Render("HACKER TERMINAL");
             Console.WriteLine(banner);
-
             Console.ResetColor();
         }
 
@@ -58,7 +141,6 @@ namespace HackerTerminal
             AnsiConsole.MarkupLine("\n[green]Welcome, intruder.[/]\n");
         }
 
-        // Эффект печатной машинки — текст печатается по буквам с задержкой
         static void TypePrint(string text, int delayMs = 20)
         {
             Console.ForegroundColor = ConsoleColor.Green;
