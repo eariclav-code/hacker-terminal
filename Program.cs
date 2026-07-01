@@ -19,6 +19,9 @@ namespace HackerTerminal
             // На этом этапе главный цикл команд ещё не готов —
             // это будет следующим шагом (среда, неделя 1).
             AnsiConsole.MarkupLine("[green]> Система готова. Главный цикл команд появится на следующем шаге.[/]");
+        // Временная проверка (уберём в среду, когда появится главный цикл команд)
+        var root = FileSystemBuilder.BuildRoot();
+        AnsiConsole.MarkupLine($"[green]ФС загружена: файлов в корне: {root.Files.Count}, папок: {System.Linq.Enumerable.Count(root.VisibleSubdirectories())}[/]");
         }
 
         static void ShowBanner()
