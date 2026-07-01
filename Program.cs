@@ -80,19 +80,19 @@ namespace HackerTerminal
                     break;
 
                 case "hack":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'hack' появится завтра.[/]");
+                    CommandHack(argument);
                     break;
 
                 case "scan":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'scan' появится завтра.[/]");
+                    CommandScan();
+                    break;
+
+                case "status":
+                    CommandStatus();
                     break;
 
                 case "connect":
                     AnsiConsole.MarkupLine("[yellow]Команда 'connect' появится позже.[/]");
-                    break;
-
-                case "status":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'status' появится завтра.[/]");
                     break;
 
                 case "clear":
@@ -113,7 +113,7 @@ namespace HackerTerminal
             AnsiConsole.MarkupLine("[green]  ls / dir[/]          — показать содержимое папки");
             AnsiConsole.MarkupLine("[green]  cd <папка>[/]        — перейти в папку (cd .. — назад)");
             AnsiConsole.MarkupLine("[green]  cat <файл>[/]        — прочитать файл");
-            AnsiConsole.MarkupLine("[green]  decrypt <файл>[/]    — расшифровать файл");
+            AnsiConsole.MarkupLine("[green]  decrypt <файл> <ключ>[/] — расшифровать файл");
             AnsiConsole.MarkupLine("[green]  hack <цель>[/]       — взломать цель");
             AnsiConsole.MarkupLine("[green]  scan[/]              — сканировать систему");
             AnsiConsole.MarkupLine("[green]  connect <адрес>[/]   — подключиться к узлу");
@@ -268,11 +268,117 @@ namespace HackerTerminal
             Console.WriteLine(decrypted);
             AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
 
-            // Запоминаем расшифрованный файл и проверяем уровень
             _state!.DecryptedFiles.Add(fileName);
             _state.Score += 50;
             AnsiConsole.MarkupLine("[green]+50 очков за расшифровку![/]");
             LevelManager.CheckLevelUp(_state);
+        }
+
+        static void CommandHack(string argument)
+        {
+            if (string.IsNullOrEmpty(argument))
+            {
+                AnsiConsole.MarkupLine("[red]Укажи цель. Пример: hack mainframe[/]");
+                return;
+            }
+
+            // Нельзя взламывать до первого уровня
+            if (_state!.Level < 1)
+            {
+                AnsiConsole.MarkupLine("[red]Недостаточно доступа. Сначала найди пароль в системе.[/]");
+                return;
+            }
+
+            TypePrint($"\nЗапуск взлома цели: {argument}", 25);
+            Thread.Sleep(300);
+            Console.WriteLine();
+            TypePrint("Подбор учётных данных", 20);
+            Thread.Sleep(200);
+            Console.Write(".");
+            Thread.Sleep(300);
+            Console.Write(".");
+            Thread.Sleep(300);
+            Console.WriteLine(".");
+            Thread.Sleep(400);
+
+            // Запрашиваем пароль
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("Введи пароль для взлома: ");
+            Console.ResetColor();
+            string? password = Console.ReadLine()?.Trim();
+
+            if (password == "shadow42")
+            {
+                Thread.Sleep(300);
+                AnsiConsole.MarkupLine("\n[green]Пароль принят! Доступ получен.[/]");
+
+                // Открываем скрытую папку secret в system
+                if (_state.RootDirectory.Subdirectories.TryGetValue("system", out var systemDir))
+                {
+                    if (systemDir.Subdirectories.TryGetValue("secret", out var secretDir))
+                    {
+                        secretDir.Reveal();
+                        AnsiConsole.MarkupLine("[green]Обнаружена скрытая директория: /system/secret[/]");
+                    }
+                }
+
+                _state.FoundKeys.Add("shadow42");
+                _state.Score += 150;
+                AnsiConsole.MarkupLine("[green]+150 очков за взлом![/]\n");
+                LevelManager.CheckLevelUp(_state);
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("\n[red]Неверный пароль. Взлом не удался.[/]\n");
+            }
+        }
+
+        static void CommandScan()
+        {
+            TypePrint("\nСканирование системы", 20);
+            Thread.Sleep(200);
+            Console.Write(".");
+            Thread.Sleep(300);
+            Console.Write(".");
+            Thread.Sleep(300);
+            Console.WriteLine(".\n");
+            Thread.Sleep(400);
+
+            AnsiConsole.MarkupLine("[green]Результаты сканирования:[/]");
+
+            if (_state!.Level == 0)
+            {
+                AnsiConsole.MarkupLine("[green]  > Обнаружен зашифрованный файл в /home[/]");
+                AnsiConsole.MarkupLine("[green]  > Подсказка: прочитай hint.txt в корне[/]");
+            }
+            else if (_state.Level == 1)
+            {
+                AnsiConsole.MarkupLine("[green]  > Пароль найден. Используй 'hack mainframe'[/]");
+                AnsiConsole.MarkupLine("[green]  > Цель: mainframe[/]");
+            }
+            else if (_state.Level >= 2)
+            {
+                AnsiConsole.MarkupLine("[green]  > Обнаружена скрытая директория: /system/secret[/]");
+                AnsiConsole.MarkupLine("[green]  > Финальный файл ждёт тебя там[/]");
+            }
+
+            Console.WriteLine();
+        }
+
+        static void CommandStatus()
+        {
+            AnsiConsole.MarkupLine("\n[green]===== СТАТУС ИГРОКА =====[/]");
+            AnsiConsole.MarkupLine($"[green]  Уровень:  {_state!.Level}[/]");
+            AnsiConsole.MarkupLine($"[green]  Очки:     {_state.Score}[/]");
+            AnsiConsole.MarkupLine($"[green]  Локация:  {_state.GetCurrentPath()}[/]");
+
+            if (_state.DecryptedFiles.Count > 0)
+                AnsiConsole.MarkupLine($"[green]  Расшифровано файлов: {_state.DecryptedFiles.Count}[/]");
+
+            if (_state.FoundKeys.Count > 0)
+                AnsiConsole.MarkupLine($"[green]  Найдено паролей: {_state.FoundKeys.Count}[/]");
+
+            AnsiConsole.MarkupLine("[green]=========================[/]\n");
         }
 
         static void ShowBanner()
