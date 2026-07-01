@@ -115,7 +115,7 @@ namespace HackerTerminal
 
             foreach (var file in dir.Files.Values)
             {
-                string encrypted = file.IsEncrypted ? " [red][зашифрован][/]" : "";
+                string encrypted = file.IsEncrypted ? " [red][[зашифрован]][/]" : "";
                 AnsiConsole.MarkupLine($"[green]  {file.Name}[/]{encrypted}");
             }
 
