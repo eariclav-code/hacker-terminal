@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using Figgle;
 using Figgle.Fonts;
@@ -21,7 +22,45 @@ namespace HackerTerminal
             var root = FileSystemBuilder.BuildRoot();
             _state = new GameState(root);
 
+            // Загружаем прогресс если есть
+            if (File.Exists("save.json"))
+            {
+                SaveSystem.Load(_state);
+                AnsiConsole.MarkupLine("[green]Загружен сохранённый прогресс.[/]");
+                AnsiConsole.MarkupLine($"[green]Уровень: {_state.Level}, Очки: {_state.Score}[/]\n");
+                RestoreFileSystemState(_state, root);
+            }
+
             RunCommandLoop();
+        }
+
+        // Восстанавливает состояние ФС после загрузки сохранения
+        static void RestoreFileSystemState(GameState state, VirtualDirectory root)
+        {
+            // Если взлом был выполнен — открываем скрытую папку
+            if (state.FoundKeys.Contains("shadow42"))
+            {
+                if (root.Subdirectories.TryGetValue("system", out var systemDir))
+                {
+                    if (systemDir.Subdirectories.TryGetValue("secret", out var secretDir))
+                    {
+                        secretDir.Reveal();
+                    }
+                }
+            }
+
+            // Если файл был расшифрован — расшифровываем его снова
+            if (state.DecryptedFiles.Contains("secret.txt"))
+            {
+                if (root.Subdirectories.TryGetValue("home", out var homeDir))
+                {
+                    if (homeDir.Files.TryGetValue("secret.txt", out var file) && file.IsEncrypted)
+                    {
+                        string decrypted = CaesarCipher.Decrypt(file.Content, file.CipherShift);
+                        file.Decrypt(decrypted);
+                    }
+                }
+            }
         }
 
         static void RunCommandLoop()
@@ -57,6 +96,8 @@ namespace HackerTerminal
                     break;
 
                 case "exit":
+                    SaveSystem.Save(_state!);
+                    AnsiConsole.MarkupLine("[green]Прогресс сохранён.[/]");
                     TypePrint("\nЗавершение сеанса...\n", 30);
                     Environment.Exit(0);
                     break;
@@ -272,6 +313,9 @@ namespace HackerTerminal
             _state.Score += 50;
             AnsiConsole.MarkupLine("[green]+50 очков за расшифровку![/]");
             LevelManager.CheckLevelUp(_state);
+
+            // Автосохранение после важного действия
+            SaveSystem.Save(_state);
         }
 
         static void CommandHack(string argument)
@@ -282,7 +326,6 @@ namespace HackerTerminal
                 return;
             }
 
-            // Нельзя взламывать до первого уровня
             if (_state!.Level < 1)
             {
                 AnsiConsole.MarkupLine("[red]Недостаточно доступа. Сначала найди пароль в системе.[/]");
@@ -301,7 +344,6 @@ namespace HackerTerminal
             Console.WriteLine(".");
             Thread.Sleep(400);
 
-            // Запрашиваем пароль
             Console.ForegroundColor = ConsoleColor.Green;
             Console.Write("Введи пароль для взлома: ");
             Console.ResetColor();
@@ -312,7 +354,6 @@ namespace HackerTerminal
                 Thread.Sleep(300);
                 AnsiConsole.MarkupLine("\n[green]Пароль принят! Доступ получен.[/]");
 
-                // Открываем скрытую папку secret в system
                 if (_state.RootDirectory.Subdirectories.TryGetValue("system", out var systemDir))
                 {
                     if (systemDir.Subdirectories.TryGetValue("secret", out var secretDir))
@@ -326,6 +367,9 @@ namespace HackerTerminal
                 _state.Score += 150;
                 AnsiConsole.MarkupLine("[green]+150 очков за взлом![/]\n");
                 LevelManager.CheckLevelUp(_state);
+
+                // Автосохранение
+                SaveSystem.Save(_state);
             }
             else
             {
