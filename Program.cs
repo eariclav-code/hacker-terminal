@@ -313,11 +313,19 @@ namespace HackerTerminal
             SaveSystem.Save(_state);
         }
 
+        static readonly string[] KnownHackTargets = { "mainframe" };
+
         static void CommandHack(string argument)
         {
             if (string.IsNullOrEmpty(argument))
             {
                 AnsiConsole.MarkupLine("[red]Укажи цель. Пример: hack mainframe[/]");
+                return;
+            }
+
+            if (Array.IndexOf(KnownHackTargets, argument.ToLower()) < 0)
+            {
+                AnsiConsole.MarkupLine($"[red]Цель '{argument}' не найдена. Попробуй: hack mainframe[/]");
                 return;
             }
 
@@ -386,10 +394,14 @@ namespace HackerTerminal
                 AnsiConsole.MarkupLine("[green]  > Пароль найден. Используй 'hack mainframe'[/]");
                 AnsiConsole.MarkupLine("[green]  > Цель: mainframe[/]");
             }
-            else if (_state.Level >= 2)
+            else if (_state.Level == 2)
             {
                 AnsiConsole.MarkupLine("[green]  > Обнаружена скрытая директория: /system/secret[/]");
-                AnsiConsole.MarkupLine("[green]  > Финальный файл ждёт тебя там[/]");
+                AnsiConsole.MarkupLine("[green]  > Известный узел: nortech-core (см. network.txt)[/]");
+            }
+            else // Level >= 3 — игра пройдена
+            {
+                AnsiConsole.MarkupLine("[green]  > Все известные системы Nortech скомпрометированы.[/]");
             }
 
             Console.WriteLine();
