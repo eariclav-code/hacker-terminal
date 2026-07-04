@@ -408,6 +408,9 @@ namespace HackerTerminal
             if (_state.FoundKeys.Count > 0)
                 AnsiConsole.MarkupLine($"[green]  Найдено паролей: {_state.FoundKeys.Count}[/]");
 
+            if (_state.GameCompleted)
+                AnsiConsole.MarkupLine("[green]  Статус: АРХИВ NORTECH РАЗОБЛАЧЁН[/]");
+
             AnsiConsole.MarkupLine("[green]=========================[/]\n");
         }
 
@@ -461,11 +464,47 @@ namespace HackerTerminal
                 LevelManager.CheckLevelUp(_state);
 
                 SaveSystem.Save(_state);
+
+                ShowEndingScene();
             }
             else
             {
                 AnsiConsole.MarkupLine("\n[red]Код доступа отклонён. Соединение разорвано.[/]\n");
             }
+        }
+
+        static void ShowEndingScene()
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Green;
+            string banner = FiggleFonts.Standard.Render("EXPOSED");
+            Console.WriteLine(banner);
+            Console.ResetColor();
+
+            Terminal.TypeLine(
+                "Сервер отдаёт архив: платёжные ведомости, переписка, отчёты об" +
+                " утечках токсичных отходов на заводе в Северном секторе...", 15);
+            Thread.Sleep(400);
+
+            Terminal.TypeLine(
+                "Ты копируешь всё и отправляешь анонимную посылку в редакцию" +
+                " \"Открытый код\".", 15);
+            Thread.Sleep(500);
+
+            Console.WriteLine();
+            Terminal.TypeLine(
+                "[ВНИМАНИЕ] Обнаружено ещё одно активное подключение к узлу.",
+                20, ConsoleColor.Red);
+            Thread.Sleep(400);
+
+            Terminal.TypeLine(
+                "Кто-то ещё был внутри вместе с тобой. Соединение разорвано" +
+                " принудительно.", 15);
+
+            Console.WriteLine();
+            AnsiConsole.MarkupLine("[green]=================================================[/]");
+            AnsiConsole.MarkupLine("[green]  NORTECH ЧАСТИЧНО РАЗОБЛАЧЁН. ИГРА ОКОНЧЕНА... ПОКА ЧТО.[/]");
+            AnsiConsole.MarkupLine("[green]=================================================[/]\n");
         }
 
         static void ShowBanner()
