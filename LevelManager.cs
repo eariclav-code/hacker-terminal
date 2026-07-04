@@ -33,7 +33,15 @@ namespace HackerTerminal
                     break;
 
                 case 2:
-                    // Уровень 2 → 3 (финал): будет добавлен позже
+                    // Уровень 2 → 3 (финал): нужно подключиться к nortech-core
+                    // с кодом администратора (connect nortech-core)
+                    if (state.FoundKeys.Contains("admin1234"))
+                    {
+                        LevelUp(state, 3,
+                            "Доступ к архиву Nortech получен. Миссия почти завершена...",
+                            300);
+                        state.GameCompleted = true;
+                    }
                     break;
             }
         }

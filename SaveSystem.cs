@@ -16,6 +16,7 @@ namespace HackerTerminal
             public int Score { get; set; }
             public string[] FoundKeys { get; set; } = Array.Empty<string>();
             public string[] DecryptedFiles { get; set; } = Array.Empty<string>();
+            public bool GameCompleted { get; set; }
         }
 
         public static void Save(GameState state)
@@ -25,7 +26,8 @@ namespace HackerTerminal
                 Level = state.Level,
                 Score = state.Score,
                 FoundKeys = new string[state.FoundKeys.Count],
-                DecryptedFiles = new string[state.DecryptedFiles.Count]
+                DecryptedFiles = new string[state.DecryptedFiles.Count],
+                GameCompleted = state.GameCompleted
             };
 
             state.FoundKeys.CopyTo(data.FoundKeys);
@@ -51,6 +53,7 @@ namespace HackerTerminal
 
                 state.Level = data.Level;
                 state.Score = data.Score;
+                state.GameCompleted = data.GameCompleted;
 
                 foreach (var key in data.FoundKeys)
                     state.FoundKeys.Add(key);

@@ -20,6 +20,9 @@ namespace HackerTerminal
         // Открытые файлы (имена файлов, которые игрок уже расшифровал)
         public HashSet<string> DecryptedFiles { get; set; } = new();
 
+        // Игра пройдена (успешное подключение к финальному узлу nortech-core)
+        public bool GameCompleted { get; set; } = false;
+
         public GameState(VirtualDirectory root)
         {
             RootDirectory = root;

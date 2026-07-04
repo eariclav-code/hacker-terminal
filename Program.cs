@@ -133,7 +133,7 @@ namespace HackerTerminal
                     break;
 
                 case "connect":
-                    AnsiConsole.MarkupLine("[yellow]Команда 'connect' появится позже.[/]");
+                    CommandConnect(argument);
                     break;
 
                 case "clear":
@@ -423,6 +423,68 @@ namespace HackerTerminal
                 AnsiConsole.MarkupLine($"[green]  Найдено паролей: {_state.FoundKeys.Count}[/]");
 
             AnsiConsole.MarkupLine("[green]=========================[/]\n");
+        }
+
+        static void CommandConnect(string argument)
+        {
+            if (string.IsNullOrEmpty(argument))
+            {
+                AnsiConsole.MarkupLine("[red]Укажи узел. Пример: connect nortech-core[/]");
+                return;
+            }
+
+            string target = argument.Trim().ToLower();
+
+            if (target != "nortech-core")
+            {
+                AnsiConsole.MarkupLine($"[red]Узел '{argument}' не найден. Проверь network.txt.[/]");
+                return;
+            }
+
+            if (_state!.Level < 2)
+            {
+                AnsiConsole.MarkupLine("[red]Недостаточно доступа для подключения к этому узлу.[/]");
+                return;
+            }
+
+            if (_state.GameCompleted)
+            {
+                AnsiConsole.MarkupLine("[yellow]Узел уже взломан. Архив Nortech полностью открыт.[/]");
+                return;
+            }
+
+            TypePrint($"\nУстановка соединения с узлом: {target}", 25);
+            Thread.Sleep(300);
+            Console.WriteLine();
+            TypePrint("Проверка учётных данных", 20);
+            Thread.Sleep(200);
+            Console.Write(".");
+            Thread.Sleep(300);
+            Console.Write(".");
+            Thread.Sleep(300);
+            Console.WriteLine(".");
+            Thread.Sleep(400);
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("Введи код доступа администратора: ");
+            Console.ResetColor();
+            string? code = Console.ReadLine()?.Trim();
+
+            if (code == "admin1234")
+            {
+                Thread.Sleep(300);
+                AnsiConsole.MarkupLine("\n[green]Код принят. Соединение установлено.[/]");
+
+                _state.FoundKeys.Add("admin1234");
+                _state.Score += 300;
+                LevelManager.CheckLevelUp(_state);
+
+                SaveSystem.Save(_state);
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("\n[red]Код доступа отклонён. Соединение разорвано.[/]\n");
+            }
         }
 
         static void ShowBanner()
