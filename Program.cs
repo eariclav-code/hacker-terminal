@@ -297,12 +297,7 @@ namespace HackerTerminal
             file.Decrypt(decrypted);
 
             TypePrint("\nРасшифровка", 40);
-            Thread.Sleep(200);
-            Console.Write(".");
-            Thread.Sleep(200);
-            Console.Write(".");
-            Thread.Sleep(200);
-            Console.WriteLine(".");
+            Terminal.Dots(3, 200);
             Thread.Sleep(400);
             AnsiConsole.MarkupLine("[green]Файл успешно расшифрован![/]");
             AnsiConsole.MarkupLine($"\n[green]--- {fileName} ---[/]");
@@ -336,12 +331,7 @@ namespace HackerTerminal
             Thread.Sleep(300);
             Console.WriteLine();
             TypePrint("Подбор учётных данных", 20);
-            Thread.Sleep(200);
-            Console.Write(".");
-            Thread.Sleep(300);
-            Console.Write(".");
-            Thread.Sleep(300);
-            Console.WriteLine(".");
+            Terminal.Dots(3, 300);
             Thread.Sleep(400);
 
             Console.ForegroundColor = ConsoleColor.Green;
@@ -380,12 +370,8 @@ namespace HackerTerminal
         static void CommandScan()
         {
             TypePrint("\nСканирование системы", 20);
-            Thread.Sleep(200);
-            Console.Write(".");
-            Thread.Sleep(300);
-            Console.Write(".");
-            Thread.Sleep(300);
-            Console.WriteLine(".\n");
+            Terminal.Dots(3, 300);
+            Console.WriteLine();
             Thread.Sleep(400);
 
             AnsiConsole.MarkupLine("[green]Результаты сканирования:[/]");
@@ -457,12 +443,7 @@ namespace HackerTerminal
             Thread.Sleep(300);
             Console.WriteLine();
             TypePrint("Проверка учётных данных", 20);
-            Thread.Sleep(200);
-            Console.Write(".");
-            Thread.Sleep(300);
-            Console.Write(".");
-            Thread.Sleep(300);
-            Console.WriteLine(".");
+            Terminal.Dots(3, 300);
             Thread.Sleep(400);
 
             Console.ForegroundColor = ConsoleColor.Green;
@@ -521,13 +502,7 @@ namespace HackerTerminal
 
         static void TypePrint(string text, int delayMs = 20)
         {
-            Console.ForegroundColor = ConsoleColor.Green;
-            foreach (char c in text)
-            {
-                Console.Write(c);
-                Thread.Sleep(delayMs);
-            }
-            Console.ResetColor();
+            Terminal.Type(text, delayMs);
         }
     }
 }

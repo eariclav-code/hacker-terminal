@@ -1,3 +1,4 @@
+using System;
 using Spectre.Console;
 
 namespace HackerTerminal
@@ -51,8 +52,9 @@ namespace HackerTerminal
             state.Level = newLevel;
             state.Score += scoreReward;
 
-            AnsiConsole.MarkupLine($"\n[green]*** УРОВЕНЬ {newLevel} ***[/]");
-            AnsiConsole.MarkupLine($"[green]{message}[/]");
+            Console.WriteLine();
+            Terminal.TypeLine($"*** УРОВЕНЬ {newLevel} ***", 15);
+            Terminal.TypeLine(message, 15);
             AnsiConsole.MarkupLine($"[green]+{scoreReward} очков! Всего: {state.Score}[/]\n");
         }
     }
