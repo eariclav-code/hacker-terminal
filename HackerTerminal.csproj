@@ -13,4 +13,10 @@
     <PackageReference Include="Spectre.Console" Version="0.57.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="quests\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

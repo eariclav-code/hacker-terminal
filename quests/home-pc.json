@@ -1,0 +1,92 @@
+{
+  "id": "home-pc",
+  "displayName": "Личный компьютер Марка (техподдержка Nortech)",
+  "requiredLevel": 0,
+  "requiredKeyToConnect": "",
+  "scanHints": [
+    "Обнаружен зашифрованный файл в /home.",
+    "Подсказка: прочитай hint.txt в корне."
+  ],
+  "directories": [
+    {
+      "path": "",
+      "hidden": false,
+      "files": [
+        {
+          "name": "readme.txt",
+          "content": "Добро пожаловать в защищённую систему Nortech Industries.\nНесанкционированный доступ отслеживается службой безопасности.\nИспользуй 'help' для списка команд.",
+          "encrypted": false
+        },
+        {
+          "name": "hint.txt",
+          "content": "Один из файлов зашифрован шифром Цезаря. Сдвиг: 3. Используй: decrypt <файл> 3",
+          "encrypted": false
+        },
+        {
+          "name": "network.txt",
+          "content": "СПИСОК ИЗВЕСТНЫХ УЗЛОВ СЕТИ:\n  Локальная цель на этой машине — mainframe. Взломай её командой 'hack mainframe'.\n  Дальнейшие узлы сети обнаруживаются командой 'scan' после успешного взлома.\n\nИспользуй: connect <узел>",
+          "encrypted": false
+        }
+      ]
+    },
+    {
+      "path": "home",
+      "hidden": false,
+      "files": [
+        {
+          "name": "notes.txt",
+          "content": "Если меня уволят раньше времени — не забудь: пароль от резервного\nархива лежит в secret.txt. Никому не говори.",
+          "encrypted": false
+        },
+        {
+          "name": "secret.txt",
+          "content": "access granted password is shadow42",
+          "encrypted": true,
+          "cipherShift": 3,
+          "grantsKeyOnDecrypt": "shadow42"
+        }
+      ]
+    },
+    {
+      "path": "system",
+      "hidden": false,
+      "files": [
+        {
+          "name": "log.txt",
+          "content": "12:01 - Login successful.\n12:03 - Unknown process started.\n12:07 - Обнаружена попытка подключения с внешнего узла.\n12:15 - Административная сессия истекла.",
+          "encrypted": false
+        }
+      ]
+    },
+    {
+      "path": "system/secret",
+      "hidden": true,
+      "files": [
+        {
+          "name": "password.txt",
+          "content": "admin1234",
+          "encrypted": false
+        },
+        {
+          "name": "briefing.txt",
+          "content": "ВНУТРЕННЯЯ СЛУЖЕБНАЯ ЗАПИСКА\n\nПроект \"Тихая гавань\" закрыт. Данные об утечках на заводе в\nСеверном секторе перемещены в архивный узел nortech-core.\nКод доступа админа действует и там же — не меняли с прошлого\nквартала.\n\nЕсли это читаешь не ты, Марк — у нас проблема.\n\nИспользуй: connect nortech-core",
+          "encrypted": false
+        }
+      ]
+    }
+  ],
+  "hack": {
+    "targetName": "mainframe",
+    "requiredKey": "shadow42",
+    "code": "4216",
+    "maxAttempts": 10,
+    "pursuitSeconds": 90,
+    "revealsDirectory": "system/secret",
+    "grantsKey": "admin1234"
+  },
+  "connections": [
+    "nortech-core"
+  ],
+  "isEnding": false,
+  "endings": []
+}

@@ -14,12 +14,22 @@ namespace HackerTerminal
         // Сдвиг шифра Цезаря, которым зашифрован файл (используется decrypt-ом).
         public int CipherShift { get; }
 
-        public VirtualFile(string name, string content, bool isEncrypted = false, int cipherShift = 0)
+        // Ключ доступа, который игрок получает сразу после прочтения файла (cat),
+        // например код взятки, спрятанный в сообщении. Пусто, если ничего не выдаёт.
+        public string? GrantsKeyOnRead { get; }
+
+        // Ключ доступа, который выдаётся после успешной расшифровки файла (decrypt).
+        public string? GrantsKeyOnDecrypt { get; }
+
+        public VirtualFile(string name, string content, bool isEncrypted = false, int cipherShift = 0,
+            string? grantsKeyOnRead = null, string? grantsKeyOnDecrypt = null)
         {
             Name = name;
             Content = content;
             IsEncrypted = isEncrypted;
             CipherShift = cipherShift;
+            GrantsKeyOnRead = grantsKeyOnRead;
+            GrantsKeyOnDecrypt = grantsKeyOnDecrypt;
         }
 
         // Помечает файл расшифрованным и заменяет содержимое на открытый текст.

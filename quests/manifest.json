@@ -1,0 +1,7 @@
+{
+  "startNode": "home-pc",
+  "nodes": [
+    "home-pc.json",
+    "nortech-core.json"
+  ]
+}

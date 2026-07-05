@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Figgle;
 using Figgle.Fonts;
 using Spectre.Console;
+using HackerTerminal.Quests;
 
 namespace HackerTerminal
 {
@@ -19,48 +21,102 @@ namespace HackerTerminal
             ShowBanner();
             RunBootSequence();
 
-            var root = FileSystemBuilder.BuildRoot();
-            _state = new GameState(root);
-
-            // Загружаем прогресс если есть
-            if (File.Exists("save.json"))
+            try
             {
-                SaveSystem.Load(_state);
+                QuestLoader.LoadAll();
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Ошибка загрузки квестов: {ex.Message}[/]");
+                return;
+            }
+
+            _state = new GameState();
+
+            bool loaded = SaveSystem.Load(_state);
+
+            if (loaded)
+            {
+                RestoreFileSystemState(_state);
                 AnsiConsole.MarkupLine("[green]Загружен сохранённый прогресс.[/]");
-                AnsiConsole.MarkupLine($"[green]Уровень: {_state.Level}, Очки: {_state.Score}[/]\n");
-                RestoreFileSystemState(_state, root);
+                AnsiConsole.MarkupLine(
+                    $"[green]Узел: {_state.CurrentNodeId}, Уровень: {_state.Level}, Очки: {_state.Score}[/]\n");
+            }
+            else
+            {
+                _state.CurrentNodeId = QuestLoader.StartNodeId;
+                EnsureNodeFileSystem(_state.CurrentNodeId);
+                _state.CurrentDirectory = _state.CurrentNodeRoot;
+                _state.KnownNodes.Add(_state.CurrentNodeId);
+                _state.VisitedNodes.Add(_state.CurrentNodeId);
             }
 
             RunCommandLoop();
         }
 
-        // Восстанавливает состояние ФС после загрузки сохранения
-        static void RestoreFileSystemState(GameState state, VirtualDirectory root)
+        // Гарантирует, что виртуальная ФС для узла построена по его квест-файлу.
+        static void EnsureNodeFileSystem(string nodeId)
         {
-            // Если взлом был выполнен — открываем скрытую папку
-            if (state.FoundKeys.Contains("shadow42"))
+            if (_state!.NodeFileSystems.ContainsKey(nodeId))
+                return;
+
+            var nodeData = QuestLoader.GetNode(nodeId);
+            var fs = NodeFileSystemBuilder.Build(nodeData);
+            _state.NodeFileSystems[nodeId] = fs;
+        }
+
+        // Восстанавливает состояние ФС всех посещённых узлов после загрузки сохранения:
+        // открывает скрытые директории для уже взломанных целей и расшифровывает
+        // файлы, которые игрок расшифровал в прошлой сессии.
+        static void RestoreFileSystemState(GameState state)
+        {
+            var nodesToRestore = new HashSet<string>(state.VisitedNodes) { state.CurrentNodeId };
+
+            foreach (var nodeId in nodesToRestore)
             {
-                if (root.Subdirectories.TryGetValue("system", out var systemDir))
+                if (!QuestLoader.Nodes.ContainsKey(nodeId))
+                    continue;
+
+                EnsureNodeFileSystem(nodeId);
+                var nodeData = QuestLoader.GetNode(nodeId);
+                var fs = state.NodeFileSystems[nodeId];
+
+                if (nodeData.Hack != null
+                    && !string.IsNullOrEmpty(nodeData.Hack.GrantsKey)
+                    && state.FoundKeys.Contains(nodeData.Hack.GrantsKey)
+                    && !string.IsNullOrEmpty(nodeData.Hack.RevealsDirectory))
                 {
-                    if (systemDir.Subdirectories.TryGetValue("secret", out var secretDir))
+                    FindDirectoryByPath(fs, nodeData.Hack.RevealsDirectory)?.Reveal();
+                }
+
+                RestoreDecryptedFiles(nodeId, fs, state);
+            }
+
+            state.CurrentDirectory = state.NodeFileSystems[state.CurrentNodeId];
+        }
+
+        static void RestoreDecryptedFiles(string nodeId, VirtualDirectory root, GameState state)
+        {
+            void Walk(VirtualDirectory dir, string path)
+            {
+                foreach (var file in dir.Files.Values)
+                {
+                    string qualifier = $"{nodeId}:{(path.Length == 0 ? file.Name : path + "/" + file.Name)}";
+
+                    if (file.IsEncrypted && state.DecryptedFiles.Contains(qualifier))
                     {
-                        secretDir.Reveal();
+                        string plain = CaesarCipher.Decrypt(file.Content, file.CipherShift);
+                        file.Decrypt(plain);
                     }
+                }
+
+                foreach (var sub in dir.Subdirectories.Values)
+                {
+                    Walk(sub, path.Length == 0 ? sub.Name : path + "/" + sub.Name);
                 }
             }
 
-            // Если файл был расшифрован — расшифровываем его снова
-            if (state.DecryptedFiles.Contains("secret.txt"))
-            {
-                if (root.Subdirectories.TryGetValue("home", out var homeDir))
-                {
-                    if (homeDir.Files.TryGetValue("secret.txt", out var file) && file.IsEncrypted)
-                    {
-                        string decrypted = CaesarCipher.Decrypt(file.Content, file.CipherShift);
-                        file.Decrypt(decrypted);
-                    }
-                }
-            }
+            Walk(root, "");
         }
 
         static void RunCommandLoop()
@@ -69,9 +125,9 @@ namespace HackerTerminal
 
             while (true)
             {
-                string path = _state!.GetCurrentPath();
+                string prompt = _state!.GetPrompt();
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write($"root@hacker:{path}> ");
+                Console.Write($"root@hacker:{prompt}> ");
                 Console.ResetColor();
 
                 string? input = Console.ReadLine()?.Trim();
@@ -155,9 +211,9 @@ namespace HackerTerminal
             AnsiConsole.MarkupLine("[green]  cd <папка>[/]        — перейти в папку (cd .. — назад)");
             AnsiConsole.MarkupLine("[green]  cat <файл>[/]        — прочитать файл");
             AnsiConsole.MarkupLine("[green]  decrypt <файл> <ключ>[/] — расшифровать файл");
-            AnsiConsole.MarkupLine("[green]  hack <цель>[/]       — взломать цель");
-            AnsiConsole.MarkupLine("[green]  scan[/]              — сканировать систему");
-            AnsiConsole.MarkupLine("[green]  connect <адрес>[/]   — подключиться к узлу");
+            AnsiConsole.MarkupLine("[green]  hack <цель>[/]       — взломать цель (мини-игра Mastermind)");
+            AnsiConsole.MarkupLine("[green]  scan[/]              — сканировать узел, искать новые подключения");
+            AnsiConsole.MarkupLine("[green]  connect <узел>[/]    — подключиться к другому узлу сети");
             AnsiConsole.MarkupLine("[green]  status[/]            — показать прогресс");
             AnsiConsole.MarkupLine("[green]  clear / cls[/]       — очистить экран");
             AnsiConsole.MarkupLine("[green]  exit[/]              — выйти из игры\n");
@@ -193,7 +249,7 @@ namespace HackerTerminal
 
             if (argument == "..")
             {
-                if (_state!.CurrentDirectory == _state.RootDirectory)
+                if (_state!.CurrentDirectory == _state.CurrentNodeRoot)
                 {
                     AnsiConsole.MarkupLine("[red]Выше корня подняться нельзя.[/]");
                     return;
@@ -246,6 +302,12 @@ namespace HackerTerminal
             AnsiConsole.MarkupLine($"\n[green]--- {argument} ---[/]");
             Console.WriteLine(file.Content);
             AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
+
+            if (!string.IsNullOrEmpty(file.GrantsKeyOnRead) && _state.FoundKeys.Add(file.GrantsKeyOnRead))
+            {
+                AnsiConsole.MarkupLine("[yellow]Информация зафиксирована. Возможно, пригодится позже.[/]\n");
+                SaveSystem.Save(_state);
+            }
         }
 
         static void CommandDecrypt(string argument)
@@ -304,79 +366,232 @@ namespace HackerTerminal
             Console.WriteLine(decrypted);
             AnsiConsole.MarkupLine("[green]--- конец файла ---[/]\n");
 
-            _state!.DecryptedFiles.Add(fileName);
+            string qualifier = BuildFileQualifier(fileName);
+            _state!.DecryptedFiles.Add(qualifier);
             _state.Score += 50;
             AnsiConsole.MarkupLine("[green]+50 очков за расшифровку![/]");
+
+            if (!string.IsNullOrEmpty(file.GrantsKeyOnDecrypt) && _state.FoundKeys.Add(file.GrantsKeyOnDecrypt))
+            {
+                AnsiConsole.MarkupLine($"[green]Обнаружен ключ доступа: {file.GrantsKeyOnDecrypt}[/]");
+            }
+
             LevelManager.CheckLevelUp(_state);
 
-            // Автосохранение после важного действия
             SaveSystem.Save(_state);
         }
 
-        static readonly string[] KnownHackTargets = { "mainframe" };
+        static string BuildFileQualifier(string fileName)
+        {
+            string path = _state!.GetCurrentPath();
+            string rel = path == "/" ? fileName : $"{path.TrimStart('/')}/{fileName}";
+            return $"{_state.CurrentNodeId}:{rel}";
+        }
 
         static void CommandHack(string argument)
         {
+            if (_state!.GameCompleted)
+            {
+                AnsiConsole.MarkupLine("[yellow]Игра уже завершена. Удали save.json, чтобы начать заново.[/]");
+                return;
+            }
+
             if (string.IsNullOrEmpty(argument))
             {
                 AnsiConsole.MarkupLine("[red]Укажи цель. Пример: hack mainframe[/]");
                 return;
             }
 
-            if (Array.IndexOf(KnownHackTargets, argument.ToLower()) < 0)
+            var node = QuestLoader.GetNode(_state.CurrentNodeId);
+            var hackTarget = node.Hack;
+
+            if (hackTarget == null || !string.Equals(hackTarget.TargetName, argument, StringComparison.OrdinalIgnoreCase))
             {
-                AnsiConsole.MarkupLine($"[red]Цель '{argument}' не найдена. Попробуй: hack mainframe[/]");
+                AnsiConsole.MarkupLine($"[red]Цель '{argument}' не найдена на этом узле.[/]");
                 return;
             }
 
-            if (_state!.Level < 1)
+            bool alreadyHacked = !string.IsNullOrEmpty(hackTarget.GrantsKey)
+                && _state.FoundKeys.Contains(hackTarget.GrantsKey);
+
+            if (alreadyHacked)
+            {
+                AnsiConsole.MarkupLine("[yellow]Эта цель уже взломана.[/]");
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(hackTarget.RequiredKey) && !_state.FoundKeys.Contains(hackTarget.RequiredKey))
             {
                 AnsiConsole.MarkupLine("[red]Недостаточно доступа. Сначала найди пароль в системе.[/]");
                 return;
             }
 
+            // Развилка "взятка" — доступна только на финальном узле,
+            // если игрок уже прочитал сообщение с предложением сделки.
+            if (node.IsEnding && _state.FoundKeys.Contains("bribe_offer"))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write("\nТебе предлагают сделку взамен на отказ от взлома. Принять? (yes/no): ");
+                Console.ResetColor();
+                string? decision = Console.ReadLine()?.Trim().ToLower();
+
+                if (decision == "yes" || decision == "да")
+                {
+                    TriggerEnding(node, "bribe");
+                    return;
+                }
+
+                AnsiConsole.MarkupLine("[green]Ты отклоняешь предложение и продолжаешь взлом.[/]\n");
+            }
+
             TypePrint($"\nЗапуск взлома цели: {argument}", 25);
             Thread.Sleep(300);
             Console.WriteLine();
-            TypePrint("Подбор учётных данных", 20);
-            Terminal.Dots(3, 300);
-            Thread.Sleep(400);
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write("Введи пароль для взлома: ");
-            Console.ResetColor();
-            string? password = Console.ReadLine()?.Trim();
+            var outcome = Mastermind.Play(hackTarget.Code, hackTarget.MaxAttempts, hackTarget.PursuitSeconds);
 
-            if (password == "shadow42")
+            switch (outcome.Result)
             {
-                Thread.Sleep(300);
-                AnsiConsole.MarkupLine("\n[green]Пароль принят! Доступ получен.[/]");
+                case MastermindResult.Success:
+                    HandleHackSuccess(node, hackTarget, outcome);
+                    break;
 
-                if (_state.RootDirectory.Subdirectories.TryGetValue("system", out var systemDir))
+                case MastermindResult.OutOfAttempts:
+                    HandleHackFailure(node, "Превышено число попыток. Система блокирует канал доступа.");
+                    break;
+
+                case MastermindResult.Traced:
+                    HandleHackFailure(node, "Таймер слежки истёк — служба безопасности обнаружила подключение.");
+                    break;
+            }
+        }
+
+        static void HandleHackSuccess(NetworkNodeData node, HackTargetData hackTarget, MastermindOutcome outcome)
+        {
+            AnsiConsole.MarkupLine("\n[green]Код подобран! Доступ получен.[/]");
+
+            if (!string.IsNullOrEmpty(hackTarget.RevealsDirectory))
+            {
+                var dir = FindDirectoryByPath(_state!.CurrentNodeRoot, hackTarget.RevealsDirectory);
+                if (dir != null)
                 {
-                    if (systemDir.Subdirectories.TryGetValue("secret", out var secretDir))
-                    {
-                        secretDir.Reveal();
-                        AnsiConsole.MarkupLine("[green]Обнаружена скрытая директория: /system/secret[/]");
-                    }
+                    dir.Reveal();
+                    AnsiConsole.MarkupLine($"[green]Обнаружена скрытая директория: /{hackTarget.RevealsDirectory}[/]");
                 }
-
-                _state.FoundKeys.Add("shadow42");
-                _state.Score += 150;
-                AnsiConsole.MarkupLine("[green]+150 очков за взлом![/]\n");
-                LevelManager.CheckLevelUp(_state);
-
-                // Автосохранение
-                SaveSystem.Save(_state);
             }
-            else
+
+            if (!string.IsNullOrEmpty(hackTarget.GrantsKey))
+                _state!.FoundKeys.Add(hackTarget.GrantsKey);
+
+            int bonus = ScoreBonusForSpeed(outcome, hackTarget);
+            int totalScore = 150 + bonus;
+            _state!.Score += totalScore;
+            AnsiConsole.MarkupLine($"[green]+{totalScore} очков за взлом![/]\n");
+
+            LevelManager.CheckLevelUp(_state);
+
+            if (node.IsEnding)
             {
-                AnsiConsole.MarkupLine("\n[red]Неверный пароль. Взлом не удался.[/]\n");
+                string condition = DetermineEndingCondition(outcome, hackTarget);
+                TriggerEnding(node, condition);
+                return;
             }
+
+            SaveSystem.Save(_state);
+        }
+
+        static void HandleHackFailure(NetworkNodeData node, string message)
+        {
+            AnsiConsole.MarkupLine($"\n[red]{message}[/]");
+
+            _state!.Score = Math.Max(0, _state.Score - 30);
+            AnsiConsole.MarkupLine("[red]-30 очков за провал попытки взлома.[/]\n");
+
+            if (node.IsEnding)
+            {
+                TriggerEnding(node, "traced");
+                return;
+            }
+
+            AnsiConsole.MarkupLine("[yellow]Можно попробовать снова.[/]\n");
+            SaveSystem.Save(_state);
+        }
+
+        static int ScoreBonusForSpeed(MastermindOutcome outcome, HackTargetData hackTarget)
+        {
+            bool fastAttempts = outcome.AttemptsUsed <= hackTarget.MaxAttempts * 0.6;
+            bool fastTime = outcome.SecondsUsed <= hackTarget.PursuitSeconds * 0.6;
+
+            if (fastAttempts && fastTime)
+                return 100;
+
+            if (fastAttempts || fastTime)
+                return 40;
+
+            return 0;
+        }
+
+        static string DetermineEndingCondition(MastermindOutcome outcome, HackTargetData hackTarget)
+        {
+            bool fastAttempts = outcome.AttemptsUsed <= hackTarget.MaxAttempts * 0.6;
+            bool fastTime = outcome.SecondsUsed <= hackTarget.PursuitSeconds * 0.6;
+
+            return (fastAttempts && fastTime) ? "clean" : "partial";
+        }
+
+        static void TriggerEnding(NetworkNodeData node, string conditionId)
+        {
+            EndingOptionData? ending = node.Endings.Find(e => e.Condition == conditionId);
+            ending ??= node.Endings.Find(e => e.Condition == "partial");
+            ending ??= (node.Endings.Count > 0 ? node.Endings[0] : null);
+
+            _state!.GameCompleted = true;
+            _state.EndingAchieved = ending?.Id ?? conditionId;
+
+            SaveSystem.Save(_state);
+
+            if (ending != null)
+                ShowEndingScene(ending);
+        }
+
+        static void ShowEndingScene(EndingOptionData ending)
+        {
+            bool isBad = ending.Condition == "traced";
+
+            Console.WriteLine();
+            Console.ForegroundColor = isBad ? ConsoleColor.Red : ConsoleColor.Green;
+            string bannerText = isBad ? "CAUGHT" : "EXPOSED";
+            string banner = FiggleFonts.Standard.Render(bannerText);
+            Console.WriteLine(banner);
+            Console.ResetColor();
+
+            Terminal.TypeLine(ending.Text, 15, isBad ? ConsoleColor.Red : Terminal.DefaultColor);
+
+            Console.WriteLine();
+            AnsiConsole.MarkupLine("[green]=================================================[/]");
+            AnsiConsole.MarkupLine($"[green]  ФИНАЛ: {ending.Title.ToUpperInvariant()}[/]");
+            AnsiConsole.MarkupLine("[green]=================================================[/]\n");
+        }
+
+        static VirtualDirectory? FindDirectoryByPath(VirtualDirectory root, string path)
+        {
+            var current = root;
+
+            foreach (var seg in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!current.Subdirectories.TryGetValue(seg, out var next))
+                    return null;
+
+                current = next;
+            }
+
+            return current;
         }
 
         static void CommandScan()
         {
+            var node = QuestLoader.GetNode(_state!.CurrentNodeId);
+
             TypePrint("\nСканирование системы", 20);
             Terminal.Dots(3, 300);
             Console.WriteLine();
@@ -384,139 +599,134 @@ namespace HackerTerminal
 
             AnsiConsole.MarkupLine("[green]Результаты сканирования:[/]");
 
-            if (_state!.Level == 0)
+            foreach (var hint in node.ScanHints)
             {
-                AnsiConsole.MarkupLine("[green]  > Обнаружен зашифрованный файл в /home[/]");
-                AnsiConsole.MarkupLine("[green]  > Подсказка: прочитай hint.txt в корне[/]");
+                AnsiConsole.MarkupLine($"[green]  > {hint}[/]");
             }
-            else if (_state.Level == 1)
+
+            bool hacked = node.Hack != null
+                && !string.IsNullOrEmpty(node.Hack.GrantsKey)
+                && _state.FoundKeys.Contains(node.Hack.GrantsKey);
+
+            if (hacked)
             {
-                AnsiConsole.MarkupLine("[green]  > Пароль найден. Используй 'hack mainframe'[/]");
-                AnsiConsole.MarkupLine("[green]  > Цель: mainframe[/]");
+                foreach (var connId in node.Connections)
+                {
+                    if (_state.KnownNodes.Add(connId))
+                    {
+                        var connNode = QuestLoader.GetNode(connId);
+                        AnsiConsole.MarkupLine($"[blue]  > Обнаружен новый узел сети: {connId} ({connNode.DisplayName})[/]");
+                    }
+                }
             }
-            else if (_state.Level == 2)
+            else if (node.Hack != null)
             {
-                AnsiConsole.MarkupLine("[green]  > Обнаружена скрытая директория: /system/secret[/]");
-                AnsiConsole.MarkupLine("[green]  > Известный узел: nortech-core (см. network.txt)[/]");
+                AnsiConsole.MarkupLine(
+                    $"[yellow]  > Обнаружена защищённая цель: {node.Hack.TargetName}. Используй 'hack {node.Hack.TargetName}'[/]");
             }
-            else // Level >= 3 — игра пройдена
+
+            if (_state.GameCompleted)
             {
                 AnsiConsole.MarkupLine("[green]  > Все известные системы Nortech скомпрометированы.[/]");
             }
 
             Console.WriteLine();
+            SaveSystem.Save(_state);
         }
 
         static void CommandStatus()
         {
+            var node = QuestLoader.GetNode(_state!.CurrentNodeId);
+
             AnsiConsole.MarkupLine("\n[green]===== СТАТУС ИГРОКА =====[/]");
-            AnsiConsole.MarkupLine($"[green]  Уровень:  {_state!.Level}[/]");
+            AnsiConsole.MarkupLine($"[green]  Уровень:  {_state.Level}[/]");
             AnsiConsole.MarkupLine($"[green]  Очки:     {_state.Score}[/]");
+            AnsiConsole.MarkupLine($"[green]  Узел:     {_state.CurrentNodeId} ({node.DisplayName})[/]");
             AnsiConsole.MarkupLine($"[green]  Локация:  {_state.GetCurrentPath()}[/]");
 
             if (_state.DecryptedFiles.Count > 0)
                 AnsiConsole.MarkupLine($"[green]  Расшифровано файлов: {_state.DecryptedFiles.Count}[/]");
 
             if (_state.FoundKeys.Count > 0)
-                AnsiConsole.MarkupLine($"[green]  Найдено паролей: {_state.FoundKeys.Count}[/]");
+                AnsiConsole.MarkupLine($"[green]  Найдено ключей доступа: {_state.FoundKeys.Count}[/]");
+
+            if (_state.KnownNodes.Count > 0)
+                AnsiConsole.MarkupLine($"[green]  Известно узлов сети: {_state.KnownNodes.Count}[/]");
 
             if (_state.GameCompleted)
-                AnsiConsole.MarkupLine("[green]  Статус: АРХИВ NORTECH РАЗОБЛАЧЁН[/]");
+            {
+                string endingLabel = _state.EndingAchieved ?? "неизвестно";
+                AnsiConsole.MarkupLine($"[green]  Статус: ИГРА ЗАВЕРШЕНА — концовка: {endingLabel}[/]");
+            }
 
             AnsiConsole.MarkupLine("[green]=========================[/]\n");
         }
 
         static void CommandConnect(string argument)
         {
+            if (_state!.GameCompleted)
+            {
+                AnsiConsole.MarkupLine("[yellow]Игра уже завершена. Удали save.json, чтобы начать заново.[/]");
+                return;
+            }
+
             if (string.IsNullOrEmpty(argument))
             {
                 AnsiConsole.MarkupLine("[red]Укажи узел. Пример: connect nortech-core[/]");
                 return;
             }
 
-            string target = argument.Trim().ToLower();
+            string targetId = argument.Trim().ToLower();
 
-            if (target != "nortech-core")
+            if (!QuestLoader.Nodes.ContainsKey(targetId))
             {
                 AnsiConsole.MarkupLine($"[red]Узел '{argument}' не найден. Проверь network.txt.[/]");
                 return;
             }
 
-            if (_state!.Level < 2)
+            if (targetId == _state.CurrentNodeId)
+            {
+                AnsiConsole.MarkupLine("[yellow]Ты уже подключён к этому узлу.[/]");
+                return;
+            }
+
+            if (!_state.KnownNodes.Contains(targetId))
+            {
+                AnsiConsole.MarkupLine($"[red]Узел '{argument}' неизвестен. Попробуй 'scan', чтобы обнаружить доступные узлы.[/]");
+                return;
+            }
+
+            var targetNode = QuestLoader.GetNode(targetId);
+
+            if (_state.Level < targetNode.RequiredLevel)
             {
                 AnsiConsole.MarkupLine("[red]Недостаточно доступа для подключения к этому узлу.[/]");
                 return;
             }
 
-            if (_state.GameCompleted)
+            if (!string.IsNullOrEmpty(targetNode.RequiredKeyToConnect)
+                && !_state.FoundKeys.Contains(targetNode.RequiredKeyToConnect))
             {
-                AnsiConsole.MarkupLine("[yellow]Узел уже взломан. Архив Nortech полностью открыт.[/]");
+                AnsiConsole.MarkupLine("[red]Нужен код доступа для этого узла. Поищи его в системе.[/]");
                 return;
             }
 
-            TypePrint($"\nУстановка соединения с узлом: {target}", 25);
+            TypePrint($"\nУстановка соединения с узлом: {targetId}", 25);
             Thread.Sleep(300);
             Console.WriteLine();
             TypePrint("Проверка учётных данных", 20);
             Terminal.Dots(3, 300);
             Thread.Sleep(400);
+            AnsiConsole.MarkupLine("\n[green]Соединение установлено.[/]");
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write("Введи код доступа администратора: ");
-            Console.ResetColor();
-            string? code = Console.ReadLine()?.Trim();
+            EnsureNodeFileSystem(targetId);
+            _state.CurrentNodeId = targetId;
+            _state.CurrentDirectory = _state.CurrentNodeRoot;
+            _state.VisitedNodes.Add(targetId);
 
-            if (code == "admin1234")
-            {
-                Thread.Sleep(300);
-                AnsiConsole.MarkupLine("\n[green]Код принят. Соединение установлено.[/]");
+            AnsiConsole.MarkupLine($"[green]Ты теперь на узле: {targetNode.DisplayName}[/]\n");
 
-                _state.FoundKeys.Add("admin1234");
-                _state.Score += 300;
-                LevelManager.CheckLevelUp(_state);
-
-                SaveSystem.Save(_state);
-
-                ShowEndingScene();
-            }
-            else
-            {
-                AnsiConsole.MarkupLine("\n[red]Код доступа отклонён. Соединение разорвано.[/]\n");
-            }
-        }
-
-        static void ShowEndingScene()
-        {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Green;
-            string banner = FiggleFonts.Standard.Render("EXPOSED");
-            Console.WriteLine(banner);
-            Console.ResetColor();
-
-            Terminal.TypeLine(
-                "Сервер отдаёт архив: платёжные ведомости, переписка, отчёты об" +
-                " утечках токсичных отходов на заводе в Северном секторе...", 15);
-            Thread.Sleep(400);
-
-            Terminal.TypeLine(
-                "Ты копируешь всё и отправляешь анонимную посылку в редакцию" +
-                " \"Открытый код\".", 15);
-            Thread.Sleep(500);
-
-            Console.WriteLine();
-            Terminal.TypeLine(
-                "[ВНИМАНИЕ] Обнаружено ещё одно активное подключение к узлу.",
-                20, ConsoleColor.Red);
-            Thread.Sleep(400);
-
-            Terminal.TypeLine(
-                "Кто-то ещё был внутри вместе с тобой. Соединение разорвано" +
-                " принудительно.", 15);
-
-            Console.WriteLine();
-            AnsiConsole.MarkupLine("[green]=================================================[/]");
-            AnsiConsole.MarkupLine("[green]  NORTECH ЧАСТИЧНО РАЗОБЛАЧЁН. ИГРА ОКОНЧЕНА... ПОКА ЧТО.[/]");
-            AnsiConsole.MarkupLine("[green]=================================================[/]\n");
+            SaveSystem.Save(_state);
         }
 
         static void ShowBanner()
